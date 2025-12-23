@@ -2,10 +2,13 @@ import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from langchain_ollama import ChatOllama
+from langchain_core.prompts import ChatPromptTemplate
 
 df = pd.read_csv('database/processed/movies_cleaned.csv')
 df = df.dropna(subset=['text_for_ia']).reset_index(drop=True)
 model = SentenceTransformer('all-MiniLM-L6-v2')
+llm = ChatOllama(model="llama3.2", temperature=0.7)
 
 matriz_vetores = model.encode(df['text_for_ia'].tolist(), show_progress_bar=True)
 
@@ -28,4 +31,39 @@ def recomendar_filme(nome_filme, top_k=5):
     
   return df['title'].iloc[top_indices].tolist()
 
-print(recomendar_filme("The Dark Knight"))
+
+def get_similares (nome_filme):
+
+  return recomendar_filme(nome_filme)
+
+def genai_resposta(filme_user):
+
+  recomendacoes = get_similares(filme_user)
+
+  if isinstance(recomendacoes, str):
+    return recomendacoes
+  
+  template = """
+    Você é um assistente especialista em cinema.
+    O usuário disse que gosta do filme: {filme_input}.
+    
+    Baseado na nossa análise de dados, encontramos estes filmes similares para ele:
+    {lista_filmes}
+    
+    Crie uma resposta curta e engajadora recomendando esses filmes. 
+    Não invente filmes que não estão na lista.
+    """
+    
+  prompt = ChatPromptTemplate.from_template(template)
+    
+  chain = prompt | llm
+    
+  resposta = chain.invoke({
+        "filme_input": filme_user,
+        "lista_filmes": ", ".join(recomendacoes) 
+    })
+    
+  return resposta.content
+
+print("Consultando Llama...")
+print(genai_resposta("The Dark knight"))
